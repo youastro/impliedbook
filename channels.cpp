@@ -63,7 +63,9 @@ data_agg file_channel::get_data() {
   boost::tokenizer<boost::char_separator<char>> tok(line, sep);
   for(auto beg=tok.begin(); beg!=tok.end(); ++beg){
     if (boost::starts_with(*beg,"52=")) {
-      time = boost::lexical_cast<long long>(std::string(*beg).substr(11));
+      //time = boost::lexical_cast<long long>(std::string(*beg).substr(11));
+      auto substring = std::string(*beg).substr(11);
+      std::stringstream(substring) >> time;
       break;
     }
   }

@@ -58,6 +58,19 @@ struct level {
 
 };
 
+struct greater_by_prc {
+  bool operator()(const level* lhs, const level* rhs) {
+    return lhs->prc > rhs.prc;
+  }
+};
+
+struct less_by_prc {
+  bool operator()(const level* lhs, const level* rhs) {
+    return lhs->prc < rhs.prc;
+  }
+};
+
+
 struct book {
 	level* atop;
 	level* btop;
@@ -75,43 +88,45 @@ struct book {
 
 class book_manager;
 class imp_book {
-	std::string m_sym;
-	std::unordered_map<std::string, book> dpdt_books;
-	book_manager* ibb;
+  std::string m_sym;
+  std::unordered_map<std::string, book> dpdt_books;
+  book_manager* ibb;
 
-	// book* build_imp_book(book* ob, book* sb, unsigned short lvl, imply_out_type t);
-	level* build_imp_levels(level*, level*, unsigned short, std::function<double(double,double)>);
+  // book* build_imp_book(book* ob, book* sb, unsigned short lvl, imply_out_type t);
+  level* build_imp_levels(level*, level*, unsigned short, std::function<double(double,double)>);
 
 public:
-	imp_book(const std::string& s, book_manager* ib) : m_sym(s), ibb(ib) {}
-	void update_spread(const spread_sym&, side);
-	void update_outright(const std::string&, side);
-	void print();
+  imp_book(const std::string& s, book_manager* ib) : m_sym(s), ibb(ib) {}
+  void update_spread(const spread_sym&, side);
+  void update_outright(const std::string&, side);
+  void print();
+  void print_combined();
 };
 
 class book_manager 
 {
-	friend imp_book;
+  friend imp_book;
 
-	device m_d;
-	std::unordered_map<std::string, book> m_outright_book;
-	std::unordered_map<spread_sym, book, spread_sym_hash> m_spread_book;
-	std::unordered_map<std::string, imp_book> m_imp_book;
-	std::unordered_map<std::string, std::vector<std::string>> m_outright2implied;
-	
-	//void build_ib(const std::string& outright, const std::string& spread);
+  device m_d;
+  std::unordered_map<std::string, book> m_outright_book;
+  std::unordered_map<spread_sym,  book, spread_sym_hash> m_spread_book;
+  std::unordered_map<std::string, imp_book> m_imp_book;
+  std::unordered_map<std::string, std::vector<std::string>> m_outright2implied;
+  std::unordered_map<std::string, book> m_imp_cme_book;
+  //void build_ib(const std::string& outright, const std::string& spread);
 
 public:
-	book_manager(const std::vector<std::string>& files, 
-		const std::unordered_map<std::string, std::vector<std::string>>& symmap);
+  book_manager(const std::vector<std::string>& files, 
+	       const std::unordered_map<std::string, std::vector<std::string>>& symmap);
 
-	void update_spread(const spread_sym& sym, 
-		const level& l, side s, int lvl, operation op);
-	void update_outright(const std::string& sym, 
-		const level& l, side s, int lvl, operation op);
-
-	void start();
-	void print();
+  void update_spread(const spread_sym& sym, 
+		     const level& l, side s, int lvl, operation op);
+  void update_outright(const std::string& sym, 
+		       const level& l, side s, int lvl, operation op);
+  void update_cme_imp_book(const std::string& sym,
+			   const level& l, side s, int lvl, operation op);
+  void start();
+  void print();
 };
 
 
