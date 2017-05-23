@@ -60,13 +60,13 @@ struct level {
 
 struct greater_by_prc {
   bool operator()(const level* lhs, const level* rhs) {
-    return lhs->prc > rhs.prc;
+    return lhs->prc > rhs->prc;
   }
 };
 
 struct less_by_prc {
   bool operator()(const level* lhs, const level* rhs) {
-    return lhs->prc < rhs.prc;
+    return lhs->prc < rhs->prc;
   }
 };
 

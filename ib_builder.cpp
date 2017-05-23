@@ -46,12 +46,12 @@ void handle_data(char* data, size_t len, void* userdata) {
       level l(prc, sz);
 
       if (implied) {
-	p->update_cme_imp_book(sym, l, s, lvl, op);
+	       p->update_cme_imp_book(sym, l, s, lvl, op);
       } else {
-	if(!sym.empty())
-	  p->update_outright(sym, l, s, lvl, op);
-	else
-	  p->update_spread(ssym, l, s, lvl, op);
+      	if(!sym.empty())
+      	  p->update_outright(sym, l, s, lvl, op);
+      	else
+      	  p->update_spread(ssym, l, s, lvl, op);
       }
 
       ready = false;
@@ -71,13 +71,13 @@ void handle_data(char* data, size_t len, void* userdata) {
     }
 
     //replace with the time tag
-    if (boost::starts_with(*beg,"52=")) {
+    if (boost::starts_with(*beg,"60=")) {
       long long time;
-      auto substring = std::string(*beg).substr(11);
+      auto substring = std::string(*beg).substr(10,10);
       std::stringstream(substring) >> time;
-      if ((time - last_time) > 60s) {
-	p->print();
-	last_time = time;
+      if ((time - last_time) > 1e5) {
+	      p->print();
+	      last_time = time;
       }
     }
 
@@ -105,12 +105,12 @@ void handle_data(char* data, size_t len, void* userdata) {
       if(tmp == "0") s = side::BID;
       else if(tmp == "1") s = side::ASK;
       else if (tmp == "E") {
-	s = side::BID;
-	implied = true;
+      	s = side::BID;
+      	implied = true;
       }
       else if (tmp == "F") {
-	s = side::ASK;
-	implied = true;
+      	s = side::ASK;
+      	implied = true;
       }
       else {
         while (beg != tok.end()) {
@@ -321,7 +321,8 @@ void book::del(int lvl, side s) {
   auto curlvl = top;
   if(lvl == 1 ) {
     top = top->next;
-    top->pre = nullptr;
+    if (top)
+      top->pre = nullptr;
     delete curlvl;
     return;
   }
@@ -452,7 +453,7 @@ void imp_book::update_spread(const spread_sym& ssym, side s) {
     auto obtop = (s == side::BID ? ob.atop : ob.btop);
 
     auto& ib = dpdt_books[ssym.long_];
-    auto& ibtop = (s == side::BID ? ib.btop : ib.atop);
+    auto& ibtop = (s == side::BID ? ib.atop : ib.btop);
     ib.clear(ibtop);
 
     ibtop = build_imp_levels(obtop, sbtop, BOOKDEPTH, subtract);
@@ -493,38 +494,62 @@ void imp_book::print() {
   std::cout << "end of implied book: " << m_sym <<std::endl;
 }
 
-void imp_book::print_coombined() {
+void imp_book::print_combined() {
   std::priority_queue<level*,std::vector<level *>, less_by_prc> bid_pq;
   for (auto db : dpdt_books) {
     if (db.second.btop != nullptr)
       bid_pq.push(db.second.btop);
   }
 
-  std::cout << m_sym <<" : combined implied bid book" <<std::endl;
+  std::cout <<"Bid" << std::endl;
   int count = 0;
-  while(count < BOOKDEPTH) {
+  while(count < BOOKDEPTH && !bid_pq.empty()) {
     auto l = bid_pq.top();
     bid_pq.pop();
     if (l->next)
       bid_pq.push(l->next);
-    std::cout << "( " << l->prc, <<" , " << l->sz << " )";
+
+    level combined(*l);
+    while (bid_pq.top()->prc == l->prc && !bid_pq.empty()) {
+      auto ll = bid_pq.top();
+      bid_pq.pop();
+      if (ll->next)
+        bid_pq.push(ll->next);
+      combined.sz += ll->sz;
+    }
+
+    std::cout << "( " << combined.prc <<" , " << combined.sz << " )";
   }
 
+  std::cout <<std::endl;
+
+  std::cout << "Ask" << std::endl;
   std::priority_queue<level*,std::vector<level *>, greater_by_prc> ask_pq;
   for (auto db : dpdt_books) {
     if (db.second.atop != nullptr)
       ask_pq.push(db.second.atop);
   }
 
-  std::cout << m_sym <<" : combined implied ask book" <<std::endl;
-  int count = 0;
-  while(count < BOOKDEPTH) {
+  count = 0;
+  while(count < BOOKDEPTH && !ask_pq.empty()) {
     auto l = ask_pq.top();
     ask_pq.pop();
     if (l->next)
       ask_pq.push(l->next);
-    std::cout << "( " << l->prc, <<" , " << l->sz << " )";
+
+    level combined(*l);
+    while (ask_pq.top()->prc == l->prc && !ask_pq.empty()) {
+      auto ll = ask_pq.top();
+      ask_pq.pop();
+      if (ll->next)
+        ask_pq.push(ll->next);
+      combined.sz += ll->sz;
+    }
+
+    std::cout << "( " << combined.prc <<" , " << combined.sz << " )";
   }
+
+  std::cout <<std::endl;
 }
 
 book_manager::book_manager(const std::vector<std::string>& files, 
@@ -575,8 +600,8 @@ void book_manager::start() {
 void book_manager::update_spread(const spread_sym& sym, 
     const level& l, side s, int lvl, operation op ) {
 
-  std::cout << sym.long_ <<"-"<< sym.short_ << " " << l.prc <<" " <<l.sz << " "
-    << static_cast<int>(s) << " " << lvl << " " << static_cast<int>(op) <<std::endl;
+  // std::cout << sym.long_ <<"-"<< sym.short_ << " " << l.prc <<" " <<l.sz << " "
+  //   << static_cast<int>(s) << " " << lvl << " " << static_cast<int>(op) <<std::endl;
 
   if (m_spread_book.find(sym) == m_spread_book.end())
     return;
@@ -611,8 +636,8 @@ void book_manager::update_spread(const spread_sym& sym,
 void book_manager::update_outright(const std::string& sym, 
     const level& l, side s, int lvl, operation op) {
 
-  std::cout << sym <<" " << l.prc <<" " <<l.sz << " "
-    << static_cast<int>(s) << " " << lvl << " " << static_cast<int>(op) <<std::endl;
+  // std::cout << sym <<" " << l.prc <<" " <<l.sz << " "
+  //   << static_cast<int>(s) << " " << lvl << " " << static_cast<int>(op) <<std::endl;
 
   if (m_outright_book.find(sym) == m_outright_book.end())
     return;
@@ -643,17 +668,21 @@ void book_manager::update_outright(const std::string& sym,
 
 }
 
-void update_cme_imp_book(const std::string& sym,
+void book_manager::update_cme_imp_book(const std::string& sym,
 			 const level& l, side s, int lvl, operation op) 
 {
   auto it = m_imp_cme_book.find(sym);
-  if (it != m_imp_cme_book.end())
+  if (it == m_imp_cme_book.end())
+    return;
+
+  if (lvl >2)
     return;
 
   auto& b  = it->second;
   switch(op) {
   case operation::NEW:
     b.insert(l,s,lvl);
+    b.del(3,s);
     break;
   case operation::MOD:
     b.modify(l,s,lvl);
@@ -670,21 +699,23 @@ void update_cme_imp_book(const std::string& sym,
 
 void book_manager::print() {
   std::cout <<"***********************************"<<std::endl;
-  for(auto b : m_outright_book) {
+  // for(auto b : m_outright_book) {
     
-    std::cout << "start of outright book: " << b.first <<std::endl;
-    b.second.print();
-    std::cout << "end of outright book: " << b.first <<std::endl;
-  }
+  //   std::cout << "start of outright book: " << b.first <<std::endl;
+  //   b.second.print();
+  //   std::cout << "end of outright book: " << b.first <<std::endl;
+  // }
 
-  for(auto b : m_spread_book) {
-    std::cout << "start of spread book: " << b.first.long_ <<"-"<<b.first.short_ <<std::endl;
-    b.second.print();
-    std::cout << "end of spread book: " << b.first.long_ <<"-"<<b.first.short_  <<std::endl;
-  }
+  // for(auto b : m_spread_book) {
+  //   std::cout << "start of spread book: " << b.first.long_ <<"-"<<b.first.short_ <<std::endl;
+  //   b.second.print();
+  //   std::cout << "end of spread book: " << b.first.long_ <<"-"<<b.first.short_  <<std::endl;
+  // }
 
   for(auto b : m_imp_book) {
-    b.second.print();
+    std::cout << "start of constructed implied book: " << b.first <<std::endl;
+    b.second.print_combined();
+    std::cout << "end of constructed mplied book: " << b.first <<std::endl;
   }
 
   for(auto b : m_imp_cme_book) {
