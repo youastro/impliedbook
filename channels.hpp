@@ -7,14 +7,15 @@
 #include <queue>
 
 class channel;
+
 struct data_agg {
-char* data;
-size_t len;
-long long time;
-channel* chan;
-data_agg(char* d, size_t l, long long t, channel* c) : data(d), len(l), time(t), chan(c) {}
-data_agg(const data_agg& da) : data(da.data), len(da.len), 
-	time(da.time),chan(da.chan) {}
+  char* data;
+  size_t len;
+  long long time;
+  channel* chan;
+  data_agg(char* d, size_t l, long long t, channel* c) : data(d), len(l), time(t), chan(c) {}
+  data_agg(const data_agg& da) : data(da.data), len(da.len), 
+  	time(da.time),chan(da.chan) {}
 };
 
 struct greater_by_time {
@@ -25,7 +26,6 @@ struct greater_by_time {
 
 typedef void (*cb_t)(char* data, size_t len, void* userdata);
 
-class channel;
 class device
 {
   cb_t m_cb;

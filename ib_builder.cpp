@@ -2,18 +2,20 @@
 #include <iostream>
 #include <boost/tokenizer.hpp>
 #include <boost/algorithm/string/predicate.hpp>
-#include <boost/lexical_cast.hpp>
 
 namespace {
 
 const int BOOKDEPTH = 10;
 
-
 spread_sym parse_spread_sym(const std::string& sym) {
   boost::char_separator<char> sep{"-"};
   boost::tokenizer<boost::char_separator<char>> tok(sym, sep);
   auto beg=tok.begin();
-  return {*beg, *(++beg)};
+  auto l = *beg;
+  std::string s = "";
+  if (++beg != tok.end())
+    s = *beg;
+  return {l, s};
 }
 
 double add(double a, double b)  {
@@ -65,16 +67,21 @@ void handle_data(char* data, size_t len, void* userdata) {
       implied = false;
     }
 
+    // only care about incremental refresh
     if (boost::starts_with(*beg,"35=")) {
       if (*beg != "35=X")
         return;
     }
 
-    //replace with the time tag
     if (boost::starts_with(*beg,"60=")) {
       long long time;
+      if (std::string(*beg).size() < 20) {
+        ++beg;
+        continue;
+      }
       auto substring = std::string(*beg).substr(10,10);
       std::stringstream(substring) >> time;
+      // 1e5 corresponds to 1 minite
       if ((time - last_time) > 1e5) {
 	      p->print();
 	      last_time = time;
@@ -85,7 +92,6 @@ void handle_data(char* data, size_t len, void* userdata) {
       int tmp;
       auto substring = std::string(*beg).substr(4);
       std::stringstream(substring) >> tmp;
-      //auto tmp  = boost::lexical_cast<int>(std::string(*beg).substr(4,1));
       switch(tmp) {
         case 0: 
           op = operation::NEW;
@@ -101,7 +107,7 @@ void handle_data(char* data, size_t len, void* userdata) {
           return;
       }
     } else if (boost::starts_with(*beg,"269=")) {
-      auto tmp  = boost::lexical_cast<std::string>(std::string(*beg).substr(4));
+      auto tmp  = std::string(*beg).substr(4);
       if(tmp == "0") s = side::BID;
       else if(tmp == "1") s = side::ASK;
       else if (tmp == "E") {
@@ -121,7 +127,7 @@ void handle_data(char* data, size_t len, void* userdata) {
         if (beg == tok.end()) return;
       }
     } else if (boost::starts_with(*beg,"55=")) {
-      auto tmp  = boost::lexical_cast<std::string>(std::string(*beg).substr(3));
+      auto tmp  = std::string(*beg).substr(3);
       auto pos = tmp.find("-");
       if (pos != std::string::npos && pos != tmp.size()-1)
         ssym = parse_spread_sym(tmp);
@@ -130,31 +136,23 @@ void handle_data(char* data, size_t len, void* userdata) {
     } else if (boost::starts_with(*beg,"270=")) {
       auto substring = std::string(*beg).substr(4);
       std::stringstream(substring) >> prc;
-      //prc  = boost::lexical_cast<double>(std::string(*beg).substr(4));
     } else if (boost::starts_with(*beg,"271=")) {
       auto substring = std::string(*beg).substr(4);
       std::stringstream(substring) >> sz;
-      //sz  = boost::lexical_cast<int>(std::string(*beg).substr(4));
     } else if (boost::starts_with(*beg,"1023=")) {
       auto substring = std::string(*beg).substr(5);
       std::stringstream(substring) >> lvl;
-      //lvl  = boost::lexical_cast<int>(std::string(*beg).substr(5));
       ready = true;
     }
 
     ++beg;
   }
-
 }
 
 } //end of anonymous namespace
 
 bool level::betterthan(const level& l, side s) {
   return s == side::BID ? prc > l.prc : prc < l.prc;
-}
-
-bool level::betterequal(const level& l, side s) {
-  return s == side::BID ? prc >= l.prc : prc <= l.prc;
 }
 
 book::book() : atop(nullptr), btop(nullptr)
@@ -171,25 +169,6 @@ void book::clear(level* top) {
     }
     top = nullptr;
   }
-}
-
-void book::clear() {
-
-  auto atop_cpy = atop;
-  while(atop_cpy) {
-    auto tmp = atop_cpy;
-    atop_cpy = atop_cpy->next;
-    delete tmp;
-  }
-  atop = nullptr;
-
-  auto btop_cpy = btop;
-  while(btop_cpy) {
-    auto tmp = btop_cpy;
-    btop_cpy = btop_cpy->next;
-    delete tmp;
-  }
-  btop=nullptr;
 }
 
 void book::update_trade(const level& l, side s) {
@@ -242,7 +221,6 @@ void book::update_trade(const level& l, side s) {
 }
 
 void book::insert(const level& l, side s, int lvl) {
-  std::cout << "book new: " << lvl << " " << static_cast<int>(s) <<std::endl;
   auto& top = (s == side::BID ? btop : atop);
   auto curlvl = top;
   if (lvl ==1) {
@@ -278,7 +256,6 @@ void book::insert(const level& l, side s, int lvl) {
 }
 
 void book::modify(const level& l, side s, int lvl) {
-  std::cout << "book modify: " << lvl << " " <<static_cast<int>(s) <<std::endl;
   auto& top = (s == side::BID ? btop : atop);
   auto curlvl = top;
 
@@ -311,7 +288,6 @@ void book::modify(const level& l, side s, int lvl) {
 }
 
 void book::del(int lvl, side s) {
-  std::cout << "book del: " << lvl << " " <<static_cast<int>(s)<<std::endl;
   auto& top = (s == side::BID ? btop : atop);
   if (!top){
     std::cout << "book empty, nothing to be deleted, lvl=" << lvl << std::endl;
@@ -363,20 +339,6 @@ void book::print() {
   }
   std::cout << std::endl;
 }
-
-// book imp_book::build_imp_book(book* ob, book* sb, unsigned short lvl, imply_out_type t)
-// {
-//   book ib;
-//   if (t == imply_out_type.OPPOSITE) {
-//     ib.atop = build_imp_levels(ob->atop, sb->btop, lvl, subtract);
-//     ib.btop = build_imp_levels(ob->btop, sb->atop, lvl, subtract);
-//   } else {
-//     ib.atop = build_imp_levels(ob->atop, sb->atop, lvl, add);
-//     ib.btop = build_imp_levels(ob->btop, sb->btop, lvl, add);
-//   }
-
-//   return ib;
-// }
 
 level* imp_book::build_imp_levels(level* obtop, level* sbtop, unsigned short lvl,
   std::function<double(double,double)> func) 
@@ -485,15 +447,6 @@ void imp_book::update_outright(const std::string& osym, side s) {
   ibtop = build_imp_levels(obtop, sbtop, BOOKDEPTH, t == imply_out_type::SAME ? add : subtract);
 }
 
-void imp_book::print() {
-  std::cout << "start of implied book: " << m_sym <<std::endl;
-  for (auto db : dpdt_books) {
-    std::cout << "dependent sym" << db.first <<std::endl;
-    db.second.print();
-  }
-  std::cout << "end of implied book: " << m_sym <<std::endl;
-}
-
 void imp_book::print_combined() {
   std::priority_queue<level*,std::vector<level *>, less_by_prc> bid_pq;
   for (auto db : dpdt_books) {
@@ -501,7 +454,7 @@ void imp_book::print_combined() {
       bid_pq.push(db.second.btop);
   }
 
-  std::cout <<"Bid" << std::endl;
+  std::cout <<"Constructed implied Bid book of " << m_sym << std::endl;
   int count = 0;
   while(count < BOOKDEPTH && !bid_pq.empty()) {
     auto l = bid_pq.top();
@@ -517,13 +470,13 @@ void imp_book::print_combined() {
         bid_pq.push(ll->next);
       combined.sz += ll->sz;
     }
-
+    ++count;
     std::cout << "( " << combined.prc <<" , " << combined.sz << " )";
   }
 
   std::cout <<std::endl;
 
-  std::cout << "Ask" << std::endl;
+  std::cout << "Constructed implied Ask book of " << m_sym << std::endl;
   std::priority_queue<level*,std::vector<level *>, greater_by_prc> ask_pq;
   for (auto db : dpdt_books) {
     if (db.second.atop != nullptr)
@@ -545,7 +498,7 @@ void imp_book::print_combined() {
         ask_pq.push(ll->next);
       combined.sz += ll->sz;
     }
-
+    ++count;
     std::cout << "( " << combined.prc <<" , " << combined.sz << " )";
   }
 
@@ -562,7 +515,6 @@ book_manager::book_manager(const std::vector<std::string>& files,
 
   m_d.set_cb(handle_data, this);
 
-  std::cout << "inside book_manager" <<std::endl;
   for (auto& s: symmap) {
     std::cout << s.first << std::endl;
     m_imp_book.insert(std::make_pair(s.first, imp_book{s.first, this}));
@@ -587,21 +539,14 @@ book_manager::book_manager(const std::vector<std::string>& files,
       }
     }
   }
-  std::cout << "booksize" << m_outright_book.size() <<" " << m_spread_book.size() << " " 
-    << m_imp_book.size() << std::endl;
 }
 
 void book_manager::start() {
-  for (int i = 0; i < 10000 ; ++i) {
-    m_d.process();
-  }
+    while (m_d.process()){}
 }
 
 void book_manager::update_spread(const spread_sym& sym, 
     const level& l, side s, int lvl, operation op ) {
-
-  // std::cout << sym.long_ <<"-"<< sym.short_ << " " << l.prc <<" " <<l.sz << " "
-  //   << static_cast<int>(s) << " " << lvl << " " << static_cast<int>(op) <<std::endl;
 
   if (m_spread_book.find(sym) == m_spread_book.end())
     return;
@@ -620,7 +565,6 @@ void book_manager::update_spread(const spread_sym& sym,
       std::cerr <<"unknown operation" <<std::endl;
       return;
   }
-  //m_spread_book[sym].update(l, s);
 
   auto it = m_imp_book.find(sym.long_);
   if (it != m_imp_book.end()) {
@@ -635,9 +579,6 @@ void book_manager::update_spread(const spread_sym& sym,
 
 void book_manager::update_outright(const std::string& sym, 
     const level& l, side s, int lvl, operation op) {
-
-  // std::cout << sym <<" " << l.prc <<" " <<l.sz << " "
-  //   << static_cast<int>(s) << " " << lvl << " " << static_cast<int>(op) <<std::endl;
 
   if (m_outright_book.find(sym) == m_outright_book.end())
     return;
@@ -656,8 +597,6 @@ void book_manager::update_outright(const std::string& sym,
       std::cerr <<"unknown operation" <<std::endl;
       return;
   }
-
-  //m_outright_book[sym].update(l, s);
 
   auto implied_syms = m_outright2implied[sym];
   for (auto& is : implied_syms) {
@@ -699,29 +638,14 @@ void book_manager::update_cme_imp_book(const std::string& sym,
 
 void book_manager::print() {
   std::cout <<"***********************************"<<std::endl;
-  // for(auto b : m_outright_book) {
-    
-  //   std::cout << "start of outright book: " << b.first <<std::endl;
-  //   b.second.print();
-  //   std::cout << "end of outright book: " << b.first <<std::endl;
-  // }
 
-  // for(auto b : m_spread_book) {
-  //   std::cout << "start of spread book: " << b.first.long_ <<"-"<<b.first.short_ <<std::endl;
-  //   b.second.print();
-  //   std::cout << "end of spread book: " << b.first.long_ <<"-"<<b.first.short_  <<std::endl;
-  // }
-
-  for(auto b : m_imp_book) {
-    std::cout << "start of constructed implied book: " << b.first <<std::endl;
+  for(auto b : m_imp_book)
     b.second.print_combined();
-    std::cout << "end of constructed mplied book: " << b.first <<std::endl;
-  }
 
+  std::cout <<std::endl;
   for(auto b : m_imp_cme_book) {
     std::cout << "start of implied book from CME: " << b.first <<std::endl;
     b.second.print();
     std::cout << "end of implied book from CME: " << b.first <<std::endl;
   }
-  std::cout <<"***********************************"<<std::endl;
 }

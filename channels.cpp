@@ -1,10 +1,11 @@
 #include "channels.hpp"
-#include <limits>
+#include <climits>
 #include <cstdlib>
+#include <cstring>
 #include <boost/tokenizer.hpp>
 #include <boost/algorithm/string/predicate.hpp>
-#include <boost/lexical_cast.hpp>
 #include <iostream>
+#include <sstream>
 
 void device::add_channel(channel* c) {
   m_chans.push_back(c);
@@ -15,20 +16,22 @@ bool device::process() {
   static bool firsttime = true;
   if (firsttime) {
     for (auto& c : m_chans){
-      auto data = c->get_data();
-      m_dq.push(data);
+      auto dat = c->get_data();
+      m_dq.push(dat);
     }
     firsttime = false;
   }
 
+  //use priority queue to get data based on time order
   auto data = m_dq.top();
   m_dq.pop();
   m_dq.push(data.chan->get_data());
 
   if (data.data == nullptr || data.len ==0)
     return false;
-  //std::cout << "time: " << data.time << " chan " << data.chan << std::endl;  
+
   m_cb(data.data, data.len, m_ud);
+  free(data.data);
   return true;
 }
 
@@ -62,8 +65,9 @@ data_agg file_channel::get_data() {
   boost::char_separator<char> sep{&a};
   boost::tokenizer<boost::char_separator<char>> tok(line, sep);
   for(auto beg=tok.begin(); beg!=tok.end(); ++beg){
+    // 60= is the msg timestamp
     if (boost::starts_with(*beg,"60=")) {
-      //time = boost::lexical_cast<long long>(std::string(*beg).substr(11));
+      //extract timestamp of day, hour ... to millisecond
       auto substring = std::string(*beg).substr(10,10);
       std::stringstream(substring) >> time;
       break;

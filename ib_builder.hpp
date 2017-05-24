@@ -54,8 +54,6 @@ struct level {
 	level(const level& l) : prc(l.prc), sz(l.sz),
 		pre(nullptr), next(nullptr) {}
 	bool betterthan(const level& l, side s);
-	bool betterequal(const level& l, side s);
-
 };
 
 struct greater_by_prc {
@@ -78,7 +76,9 @@ struct book {
 	book();
 	~book() = default;
 	void clear(level* top);
-	void clear();
+
+	//update_trade can be used to update book using trade info
+	// not used in this case
 	void update_trade(const level& l, side s);
 	void insert(const level& l, side s, int lvl);
 	void modify(const level& l, side s, int lvl);
@@ -89,17 +89,18 @@ struct book {
 class book_manager;
 class imp_book {
   std::string m_sym;
+  //dpdt_books is to record different combination of implied books corresponds
+  //to the same underlying
   std::unordered_map<std::string, book> dpdt_books;
   book_manager* ibb;
 
-  // book* build_imp_book(book* ob, book* sb, unsigned short lvl, imply_out_type t);
-  level* build_imp_levels(level*, level*, unsigned short, std::function<double(double,double)>);
+  level* build_imp_levels(level*, level*, unsigned short, 
+  	std::function<double(double,double)>);
 
 public:
   imp_book(const std::string& s, book_manager* ib) : m_sym(s), ibb(ib) {}
   void update_spread(const spread_sym&, side);
   void update_outright(const std::string&, side);
-  void print();
   void print_combined();
 };
 
@@ -111,9 +112,8 @@ class book_manager
   std::unordered_map<std::string, book> m_outright_book;
   std::unordered_map<spread_sym,  book, spread_sym_hash> m_spread_book;
   std::unordered_map<std::string, imp_book> m_imp_book;
-  std::unordered_map<std::string, std::vector<std::string>> m_outright2implied;
   std::unordered_map<std::string, book> m_imp_cme_book;
-  //void build_ib(const std::string& outright, const std::string& spread);
+  std::unordered_map<std::string, std::vector<std::string>> m_outright2implied;
 
 public:
   book_manager(const std::vector<std::string>& files, 
