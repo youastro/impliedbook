@@ -28,10 +28,14 @@ double subtract(double a, double b) {
 
 void handle_data(char* data, size_t len, void* userdata) {
   auto p = reinterpret_cast<book_manager*>(userdata);
-  char a = 1;
-  boost::char_separator<char> sep{&a};
-  boost::tokenizer<boost::char_separator<char>> tok(std::string(data), sep);
-  auto beg=tok.begin();
+  char a=1;
+  // boost::char_separator<char> sep(&a);
+  // boost::tokenizer<boost::char_separator<char>> tok(std::string(data, len), sep);
+  // auto beg=tok.begin();
+
+
+  std::stringstream ss(data);
+  std::string item;
 
   operation op = operation::NONE;
   side s = side::NONE;
@@ -43,17 +47,18 @@ void handle_data(char* data, size_t len, void* userdata) {
   bool ready = false;
   bool implied = false;
   long long last_time = 0;
-  while( beg!=tok.end()){
+
+  while(getline(ss, item, a)) {
     if(ready) {
       level l(prc, sz);
 
       if (implied) {
-	       p->update_cme_imp_book(sym, l, s, lvl, op);
+         p->update_cme_imp_book(sym, l, s, lvl, op);
       } else {
-      	if(!sym.empty())
-      	  p->update_outright(sym, l, s, lvl, op);
-      	else
-      	  p->update_spread(ssym, l, s, lvl, op);
+        if(!sym.empty())
+          p->update_outright(sym, l, s, lvl, op);
+        else
+          p->update_spread(ssym, l, s, lvl, op);
       }
 
       ready = false;
@@ -68,29 +73,25 @@ void handle_data(char* data, size_t len, void* userdata) {
     }
 
     // only care about incremental refresh
-    if (boost::starts_with(*beg,"35=")) {
-      if (*beg != "35=X")
+    if (boost::starts_with(item,"35=")) {
+      if (item != "35=X")
         return;
     }
 
-    if (boost::starts_with(*beg,"60=")) {
+    if (boost::starts_with(item,"60=")) {
       long long time;
-      if (std::string(*beg).size() < 20) {
-        ++beg;
-        continue;
-      }
-      auto substring = std::string(*beg).substr(10,10);
+      auto substring = item.substr(10,10);
       std::stringstream(substring) >> time;
       // 1e5 corresponds to 1 minite
       if ((time - last_time) > 1e5) {
-	      p->print();
-	      last_time = time;
+        p->print();
+        last_time = time;
       }
     }
 
-    if (boost::starts_with(*beg,"279=")) {
+    if (boost::starts_with(item,"279=")) {
       int tmp;
-      auto substring = std::string(*beg).substr(4);
+      auto substring = item.substr(4);
       std::stringstream(substring) >> tmp;
       switch(tmp) {
         case 0: 
@@ -106,47 +107,150 @@ void handle_data(char* data, size_t len, void* userdata) {
           std::cerr << "unknown operation " << tmp <<std::endl;
           return;
       }
-    } else if (boost::starts_with(*beg,"269=")) {
-      auto tmp  = std::string(*beg).substr(4);
+    } else if (boost::starts_with(item,"269=")) {
+      auto tmp  = item.substr(4);
       if(tmp == "0") s = side::BID;
       else if(tmp == "1") s = side::ASK;
       else if (tmp == "E") {
-      	s = side::BID;
-      	implied = true;
+        s = side::BID;
+        implied = true;
       }
       else if (tmp == "F") {
-      	s = side::ASK;
-      	implied = true;
+        s = side::ASK;
+        implied = true;
       }
       else {
-        while (beg != tok.end()) {
-          if (boost::starts_with(*beg,"1023="))
+        while (getline(ss, item, a)) {
+          if (boost::starts_with(item,"1023="))
             break;
-          ++beg;
         }
-        if (beg == tok.end()) return;
+        // if (beg == tok.end()) return;
       }
-    } else if (boost::starts_with(*beg,"55=")) {
-      auto tmp  = std::string(*beg).substr(3);
+    } else if (boost::starts_with(item,"55=")) {
+      auto tmp  = item.substr(3);
       auto pos = tmp.find("-");
       if (pos != std::string::npos && pos != tmp.size()-1)
         ssym = parse_spread_sym(tmp);
       else
         sym = tmp;
-    } else if (boost::starts_with(*beg,"270=")) {
-      auto substring = std::string(*beg).substr(4);
+    } else if (boost::starts_with(item,"270=")) {
+      auto substring = item.substr(4);
       std::stringstream(substring) >> prc;
-    } else if (boost::starts_with(*beg,"271=")) {
-      auto substring = std::string(*beg).substr(4);
+    } else if (boost::starts_with(item,"271=")) {
+      auto substring = item.substr(4);
       std::stringstream(substring) >> sz;
-    } else if (boost::starts_with(*beg,"1023=")) {
-      auto substring = std::string(*beg).substr(5);
+    } else if (boost::starts_with(item,"1023=")) {
+      auto substring = item.substr(5);
       std::stringstream(substring) >> lvl;
       ready = true;
     }
-
-    ++beg;
   }
+
+
+  // while( beg!=tok.end()){
+  //   if(ready) {
+  //     level l(prc, sz);
+
+  //     if (implied) {
+	 //       p->update_cme_imp_book(sym, l, s, lvl, op);
+  //     } else {
+  //     	if(!sym.empty())
+  //     	  p->update_outright(sym, l, s, lvl, op);
+  //     	else
+  //     	  p->update_spread(ssym, l, s, lvl, op);
+  //     }
+
+  //     ready = false;
+  //     op = operation::NONE;
+  //     s = side::NONE;
+  //     prc = 0;
+  //     sz = 0;
+  //     sym = "";
+  //     ssym.long_ = "";
+  //     ssym.short_ = "";
+  //     implied = false;
+  //   }
+
+  //   // only care about incremental refresh
+  //   if (boost::starts_with(*beg,"35=")) {
+  //     if (*beg != "35=X")
+  //       return;
+  //   }
+
+  //   if (boost::starts_with(*beg,"60=")) {
+  //     long long time;
+  //     if (std::string(*beg).size() < 20) {
+  //       ++beg;
+  //       continue;
+  //     }
+  //     auto substring = std::string(*beg).substr(10,10);
+  //     std::stringstream(substring) >> time;
+  //     // 1e5 corresponds to 1 minite
+  //     if ((time - last_time) > 1e5) {
+	 //      p->print();
+	 //      last_time = time;
+  //     }
+  //   }
+
+  //   if (boost::starts_with(*beg,"279=")) {
+  //     int tmp;
+  //     auto substring = std::string(*beg).substr(4);
+  //     std::stringstream(substring) >> tmp;
+  //     switch(tmp) {
+  //       case 0: 
+  //         op = operation::NEW;
+  //         break;
+  //       case 1:
+  //         op = operation::MOD;
+  //         break;
+  //       case 2:
+  //         op = operation::DEL;
+  //         break;
+  //       default:
+  //         std::cerr << "unknown operation " << tmp <<std::endl;
+  //         return;
+  //     }
+  //   } else if (boost::starts_with(*beg,"269=")) {
+  //     auto tmp  = std::string(*beg).substr(4);
+  //     if(tmp == "0") s = side::BID;
+  //     else if(tmp == "1") s = side::ASK;
+  //     else if (tmp == "E") {
+  //     	s = side::BID;
+  //     	implied = true;
+  //     }
+  //     else if (tmp == "F") {
+  //     	s = side::ASK;
+  //     	implied = true;
+  //     }
+  //     else {
+  //       while (beg != tok.end()) {
+  //         if (boost::starts_with(*beg,"1023="))
+  //           break;
+  //         ++beg;
+  //       }
+  //       if (beg == tok.end()) return;
+  //     }
+  //   } else if (boost::starts_with(*beg,"55=")) {
+  //     auto tmp  = std::string(*beg).substr(3);
+  //     auto pos = tmp.find("-");
+  //     if (pos != std::string::npos && pos != tmp.size()-1)
+  //       ssym = parse_spread_sym(tmp);
+  //     else
+  //       sym = tmp;
+  //   } else if (boost::starts_with(*beg,"270=")) {
+  //     auto substring = std::string(*beg).substr(4);
+  //     std::stringstream(substring) >> prc;
+  //   } else if (boost::starts_with(*beg,"271=")) {
+  //     auto substring = std::string(*beg).substr(4);
+  //     std::stringstream(substring) >> sz;
+  //   } else if (boost::starts_with(*beg,"1023=")) {
+  //     auto substring = std::string(*beg).substr(5);
+  //     std::stringstream(substring) >> lvl;
+  //     ready = true;
+  //   }
+
+  //   ++beg;
+  // }
 }
 
 } //end of anonymous namespace
@@ -157,6 +261,20 @@ bool level::betterthan(const level& l, side s) {
 
 book::book() : atop(nullptr), btop(nullptr)
 {}
+
+book::~book() {
+  while(atop) {
+    auto p = atop;
+    atop = atop->next;
+    delete p;
+  }
+
+  while(btop) {
+    auto p = btop;
+    btop = btop->next;
+    delete p;
+  }
+}
 
 void book::clear(level* top) {
 
@@ -542,7 +660,11 @@ book_manager::book_manager(const std::vector<std::string>& files,
 }
 
 void book_manager::start() {
-    while (m_d.process()){}
+
+    for(int i = 0; i < 1000 ; ++i) {
+      m_d.process();
+    }
+    // while (m_d.process()){}
 }
 
 void book_manager::update_spread(const spread_sym& sym, 

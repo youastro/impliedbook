@@ -38,6 +38,12 @@ bool device::process() {
 device::~device() {
     for (auto& c : m_chans)
       delete c;
+
+    while(!m_dq.empty()) {
+      auto data = m_dq.top();
+      m_dq.pop();
+      free(data.data);
+    }
 }
 
 
@@ -57,8 +63,9 @@ data_agg file_channel::get_data() {
     return {nullptr, 0, LLONG_MAX, this};
 
   auto len = line.size();
-  auto data = (char*) malloc(len);
+  auto data = (char*) malloc(len+1);
   memcpy(data, line.c_str(), len);
+  *(data+len) = 0;
   long long time = 0;
 
   char a = 1;

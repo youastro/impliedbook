@@ -74,7 +74,7 @@ struct book {
 	level* btop;
 
 	book();
-	~book() = default;
+	~book();
 	void clear(level* top);
 
 	//update_trade can be used to update book using trade info
@@ -118,6 +118,8 @@ class book_manager
 public:
   book_manager(const std::vector<std::string>& files, 
 	       const std::unordered_map<std::string, std::vector<std::string>>& symmap);
+
+  ~book_manager()=default;
 
   void update_spread(const spread_sym& sym, 
 		     const level& l, side s, int lvl, operation op);
