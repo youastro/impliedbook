@@ -567,7 +567,7 @@ void imp_book::update_outright(const std::string& osym, side s) {
 
 void imp_book::print_combined() {
   std::priority_queue<level*,std::vector<level *>, less_by_prc> bid_pq;
-  for (auto db : dpdt_books) {
+  for (auto& db : dpdt_books) {
     if (db.second.btop != nullptr)
       bid_pq.push(db.second.btop);
   }
@@ -596,7 +596,7 @@ void imp_book::print_combined() {
 
   std::cout << "Constructed implied Ask book of " << m_sym << std::endl;
   std::priority_queue<level*,std::vector<level *>, greater_by_prc> ask_pq;
-  for (auto db : dpdt_books) {
+  for (auto& db : dpdt_books) {
     if (db.second.atop != nullptr)
       ask_pq.push(db.second.atop);
   }
@@ -661,10 +661,10 @@ book_manager::book_manager(const std::vector<std::string>& files,
 
 void book_manager::start() {
 
-    for(int i = 0; i < 1000 ; ++i) {
-      m_d.process();
-    }
-    // while (m_d.process()){}
+    // for(int i = 0; i < 1000 ; ++i) {
+    //   m_d.process();
+    // }
+    while (m_d.process()){}
 }
 
 void book_manager::update_spread(const spread_sym& sym, 
@@ -761,11 +761,11 @@ void book_manager::update_cme_imp_book(const std::string& sym,
 void book_manager::print() {
   std::cout <<"***********************************"<<std::endl;
 
-  for(auto b : m_imp_book)
+  for(auto& b : m_imp_book)
     b.second.print_combined();
 
   std::cout <<std::endl;
-  for(auto b : m_imp_cme_book) {
+  for(auto& b : m_imp_cme_book) {
     std::cout << "start of implied book from CME: " << b.first <<std::endl;
     b.second.print();
     std::cout << "end of implied book from CME: " << b.first <<std::endl;
