@@ -739,7 +739,7 @@ void book_manager::update_cme_imp_book(const std::string& sym,
   if (lvl >2)
     return;
 
-  auto& b  = it.second;
+  auto& b  = it->second;
   switch(op) {
   case operation::NEW:
     b.insert(l,s,lvl);
