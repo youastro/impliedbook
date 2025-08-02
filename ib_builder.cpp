@@ -723,7 +723,7 @@ void book_manager::update_outright(const std::string& sym,
   auto implied_syms = m_outright2implied[sym];
   for (auto& is : implied_syms) {
     auto it = m_imp_book.find(is);
-    if (it != m_imp_book.end())
+    if (it != m_imp_book->end())
       it->second.update_outright(sym, s);
   }
 
